@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User, UserDocument } from './schemas/user.schema';
+import { User, UserDocument, UserRole } from './schemas/user.schema';
 
 @Injectable()
 export class UsersService {
@@ -18,7 +18,7 @@ export class UsersService {
     name: string;
     email: string;
     password: string;
-    role: string;
+    role: UserRole;
   }): Promise<UserDocument> {
     const user = new this.userModel({
       ...userData,
@@ -26,5 +26,37 @@ export class UsersService {
     });
 
     return user.save();
+  }
+
+  // --- Email verification (feature 1-1) ---
+
+  async setVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expires: Date,
+  ): Promise<void> {
+    await this.userModel.findByIdAndUpdate(userId, {
+      $set: {
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationExpires: expires,
+      },
+    });
+  }
+
+  // Returns the user only if the token matches and has not expired.
+  async findByVerificationTokenHash(
+    tokenHash: string,
+  ): Promise<UserDocument | null> {
+    return this.userModel.findOne({
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationExpires: { $gt: new Date() },
+    });
+  }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.userModel.findByIdAndUpdate(userId, {
+      $set: { isEmailVerified: true },
+      $unset: { emailVerificationTokenHash: '', emailVerificationExpires: '' },
+    });
   }
 }
