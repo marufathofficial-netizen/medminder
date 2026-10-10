@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MedicationsModule } from './medications/medications.module';
+import { PasswordResetModule } from './password-reset/password-reset.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { MedicationsModule } from './medications/medications.module';
       }),
     }),
     MedicationsModule,
+    PasswordResetModule,
   ],
   controllers: [AppController],
   providers: [AppService],
