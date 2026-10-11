@@ -12,6 +12,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth/jwt-auth.guard';
+import { Body, Controller, Post } from '@nestjs/common';
+import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
@@ -49,5 +51,41 @@ export class AuthController {
     };
 
     return this.authService.logout(user.userId);
+  async register(
+    @Body()
+    body: {
+      name: string;
+      email: string;
+      password: string;
+      role?: string;
+    },
+  ) {
+    return this.authService.register(
+      body.name,
+      body.email,
+      body.password,
+      body.role,
+    );
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() body: { token: string }) {
+    return this.authService.verifyEmail(body.token);
+  }
+
+  @Post('resend-verification')
+  async resendVerification(@Body() body: { email: string }) {
+    return this.authService.resendVerification(body.email);
+  }
+
+  @Post('login')
+  async login(
+    @Body()
+    body: {
+      email: string;
+      password: string;
+    },
+  ) {
+    return this.authService.login(body.email, body.password);
   }
 }

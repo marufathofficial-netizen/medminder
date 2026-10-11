@@ -3,8 +3,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { MedicationsModule } from './medications/medications.module';
 import { PasswordResetModule } from './password-reset/password-reset.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { PasswordResetModule } from './password-reset/password-reset.module';
         dbName: config.get<string>('MONGODB_DB_NAME'),
       }),
     }),
+    UsersModule,
+    AuthModule,
     MedicationsModule,
     PasswordResetModule,
   ],

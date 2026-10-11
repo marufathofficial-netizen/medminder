@@ -6,6 +6,10 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy/jwt.strategy';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { UsersModule } from '../users/users.module';
+import { MailService } from '../mail/mail.service';
 
 @Module({
   imports: [
@@ -18,6 +22,8 @@ import { JwtStrategy } from './strategies/jwt.strategy/jwt.strategy';
         secret:
           configService.get<string>('JWT_ACCESS_SECRET') ||
           configService.get<string>('JWT_SECRET'),
+      useFactory: (config: ConfigService) => ({
+        secret: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
         signOptions: {
           expiresIn: '15m',
         },
@@ -27,5 +33,6 @@ import { JwtStrategy } from './strategies/jwt.strategy/jwt.strategy';
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],
+  providers: [AuthService, MailService],
 })
 export class AuthModule {}
