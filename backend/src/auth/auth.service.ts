@@ -1,21 +1,4 @@
 import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
-
-import { UsersService } from '../users/users.service';
-import { UserDocument } from '../users/schemas/user.schema';
-
-@Injectable()
-export class AuthService {
-  constructor(
-    private readonly usersService: UsersService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -26,7 +9,7 @@ export class AuthService {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { MailService } from '../mail/mail.service';
 import { UserDocument, UserRole } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
@@ -48,15 +31,12 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
+  // ---------- Registration and email verification (1-1) ----------
+
   async register(
     name: string,
     email: string,
     password: string,
-  ) {
-    const existingUser = await this.usersService.findByEmail(email);
-
-    if (existingUser) {
-      throw new ConflictException('Email is already registered');
     role?: string,
   ) {
     const cleanName = (name ?? '').trim();
@@ -85,27 +65,6 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await this.usersService.create({
-      name,
-      email,
-      password: hashedPassword,
-    });
-
-    return this.createTokenResponse(user);
-  }
-
-  async login(email: string, password: string) {
-    const user = await this.usersService.findByEmail(email);
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('Account is inactive');
-    }
-
-    const passwordMatches = await bcrypt.compare(
-      password,
       name: cleanName,
       email: cleanEmail,
       password: hashedPassword,
@@ -114,7 +73,7 @@ export class AuthService {
 
     await this.sendVerificationEmail(user);
 
-    // No login token yet: the account must be verified first.
+    // No login tokens yet: the account must be verified first.
     return {
       message:
         'Registration successful. Please check your email to verify your account.',
@@ -161,6 +120,8 @@ export class AuthService {
     return response;
   }
 
+  // ---------- Login, refresh, logout (1-2) ----------
+
   async login(email: string, password: string) {
     const user = await this.usersService.findByEmail(email ?? '');
 
@@ -177,7 +138,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    return this.createTokenResponse(user);
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is inactive');
+    }
+
+    if (!user.isEmailVerified) {
+      throw new ForbiddenException(
+        'Please verify your email before logging in',
+      );
+    }
+
+    return {
+      message: 'Login successful',
+      ...(await this.createTokenResponse(user)),
+    };
   }
 
   async refresh(refreshToken: string) {
@@ -187,7 +161,7 @@ export class AuthService {
         email: string;
         role: string;
       }>(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET')!,
+        secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
 
       const user = await this.usersService.findById(payload.sub);
@@ -196,16 +170,11 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const tokenMatches = await bcrypt.compare(
-        refreshToken,
-        user.refreshTokenHash,
-      );
-
-      if (!tokenMatches) {
+      if (!this.hashesMatch(this.hashToken(refreshToken), user.refreshTokenHash)) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      return this.createTokenResponse(user);
+      return await this.createTokenResponse(user);
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -214,10 +183,10 @@ export class AuthService {
   async logout(userId: string) {
     await this.usersService.clearRefreshTokenHash(userId);
 
-    return {
-      message: 'Logged out successfully',
-    };
+    return { message: 'Logged out successfully' };
   }
+
+  // ---------- Helpers ----------
 
   private async createTokenResponse(user: UserDocument) {
     const payload = {
@@ -229,35 +198,20 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET')!,
+      secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
 
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
+    // SHA-256, not bcrypt: bcrypt only reads the first 72 characters, which
+    // are nearly identical for every token, so it cannot tell tokens apart.
     await this.usersService.setRefreshTokenHash(
       user._id.toString(),
-      refreshTokenHash,
+      this.hashToken(refreshToken),
     );
 
     return {
       accessToken,
       refreshToken,
-    if (!user.isEmailVerified) {
-      throw new ForbiddenException(
-        'Please verify your email before logging in',
-      );
-    }
-
-    const accessToken = this.jwtService.sign({
-      sub: user._id.toString(),
-      email: user.email,
-      role: user.role,
-    });
-
-    return {
-      message: 'Login successful',
-      accessToken,
       user: {
         id: user._id,
         name: user.name,
@@ -293,5 +247,11 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private hashesMatch(a: string, b: string): boolean {
+    const bufferA = Buffer.from(a);
+    const bufferB = Buffer.from(b);
+    return bufferA.length === bufferB.length && timingSafeEqual(bufferA, bufferB);
   }
 }
