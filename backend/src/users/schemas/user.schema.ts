@@ -40,6 +40,10 @@ export class User {
 
   @Prop({ select: false })
   emailVerificationExpires?: Date;
+
+  // --- Refresh token (feature 1-2, Oni). Stored as a SHA-256 hash. ---
+  @Prop({ type: String, select: false, default: null })
+  refreshTokenHash?: string | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
