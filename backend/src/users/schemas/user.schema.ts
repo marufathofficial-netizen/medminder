@@ -3,9 +3,13 @@ import { HydratedDocument } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
 
-// TEMPORARY STUB so password reset can run before the team's User schema
-// is merged. Field names follow Maruf's Core Data Model Proposal (section 5.1).
-// When his User schema is merged: delete this file and import his instead.
+export enum UserRole {
+  PATIENT = 'patient',
+  CAREGIVER = 'caregiver',
+  DOCTOR = 'doctor',
+  ADMIN = 'admin',
+}
+
 @Schema({ timestamps: true })
 export class User {
   @Prop({ required: true, trim: true })
@@ -15,23 +19,27 @@ export class User {
   email: string;
 
   @Prop({ required: true })
-  password: string; // bcrypt hash
+  password: string;
 
-  @Prop({
-    type: String,
-    enum: ['patient', 'caregiver', 'doctor', 'admin'],
-    default: 'patient',
-  })
-  role: string;
+  @Prop({ required: true, enum: UserRole, default: UserRole.PATIENT })
+  role: UserRole;
 
-  @Prop({ default: 'UTC' })
+  // IANA timezone name, e.g. "Asia/Dhaka". Used to convert dose times.
+  @Prop({ required: true, default: 'UTC' })
   timezone: string;
 
   @Prop({ default: true })
   isActive: boolean;
 
+  // --- Email verification (feature 1-1) ---
   @Prop({ default: false })
   isEmailVerified: boolean;
+
+  @Prop({ select: false })
+  emailVerificationTokenHash?: string;
+
+  @Prop({ select: false })
+  emailVerificationExpires?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

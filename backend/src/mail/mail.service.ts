@@ -2,6 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -43,6 +51,7 @@ export class MailService {
     });
   }
 
+  // Generic sender, also used by password reset.
   async send(to: string, subject: string, html: string) {
     const transporter = await this.getTransporter();
     const info = await transporter.sendMail({
@@ -57,5 +66,17 @@ export class MailService {
     if (preview) {
       this.logger.log(`Preview email: ${preview}`);
     }
+  }
+
+  // Email verification (feature 1-1).
+  async sendVerificationEmail(to: string, name: string, link: string) {
+    await this.send(
+      to,
+      'Verify your MedMinder email',
+      `<p>Hi ${escapeHtml(name)},</p>
+<p>Please verify your email by clicking the link below:</p>
+<p><a href="${link}">Verify my email</a></p>
+<p>The link expires in 24 hours.</p>`,
+    );
   }
 }
