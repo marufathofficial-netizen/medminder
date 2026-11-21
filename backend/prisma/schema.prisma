@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  CAREGIVER
+  DOCTOR
+  ADMIN
+}
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+enum LinkType {
+  CAREGIVER
+  DOCTOR
+}
+enum LinkStatus {
+  PENDING
+  ACTIVE
+}
+enum MedStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
+}
+enum DoseStatus {
+  PENDING
+  TAKEN
+  MISSED
+  SKIPPED
+}
+enum RxStatus {
+  ACTIVE
+  PENDING
+  REJECTED
+}
+enum Severity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+model User {
+  id               String     @id @default(auto()) @map("_id") @db.ObjectId
+  email            String     @unique
+  passwordHash     String
+  name             String
+  role             Role       @default(PATIENT)
+  status           UserStatus @default(ACTIVE)
+  emailVerified    Boolean    @default(false)
+  verifyToken      String?
+  verifyExpires    DateTime?
+  resetToken       String?
+  resetExpires     DateTime?
+  twoFactorEnabled Boolean    @default(false)
+  otpHash          String?
+  otpExpires       DateTime?
+  age              Int?
+  allergies        String[]
+  conditions       String[]
+  phone            String?
+  emergencyName    String?
+  emergencyPhone   String?
+  timezone         String     @default("UTC")
+  shareProfile     Boolean    @default(true)
+  leadMinutes      Int        @default(0)
+  quietStart       String?
+  quietEnd         String?
+  channels         String[]
+  pushSub          Json?
+  lastSummaryAt    DateTime?
+  createdAt        DateTime   @default(now())
+  patientLinks     Link[]     @relation("LinkPatient")
+  memberLinks      Link[]     @relation("LinkMember")
+}
+
+model RefreshToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  tokenHash String   @unique
+  expiresAt DateTime
+}
+
+model Link {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  patientId   String     @db.ObjectId
+  memberId    String?    @db.ObjectId
+  inviteEmail String?
+  type        LinkType
+  status      LinkStatus @default(PENDING)
+  token       String     @unique
+  expiresAt   DateTime
+  initiatedBy String
+  perms       String[]
+  createdAt   DateTime   @default(now())
+  patient     User       @relation("LinkPatient", fields: [patientId], references: [id])
+  member      User?      @relation("LinkMember", fields: [memberId], references: [id])
+}
+
+model Medication {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  patientId       String         @db.ObjectId
+  name            String
+  dosage          String
+  form            String?
+  instructions    String?
+  startDate       DateTime
+  endDate         DateTime?
+  durationDays    Int?
+  status          MedStatus      @default(ACTIVE)
+  schedule        Json
+  pillCount       Int?
+  lowStockAt      Int            @default(5)
+  lowStockAlerted Boolean        @default(false)
+  unitsPerDose    Int            @default(1)
+  createdById     String         @db.ObjectId
+  createdAt       DateTime       @default(now())
+  doses           DoseLog[]
+  prescriptions   Prescription[]
+
+  @@index([patientId])
+}
+
+model Prescription {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  patientId      String      @db.ObjectId
+  medicationId   String?     @db.ObjectId
+  doctorName     String
+  doctorId       String?     @db.ObjectId
+  issuedAt       DateTime
+  quantity       Int
+  refillsTotal   Int         @default(0)
+  refillsUsed    Int         @default(0)
+  expiresAt      DateTime?
+  instructions   String?
+  expiryReminded Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  drugName       String?
+  dosage         String?
+  status         RxStatus?   @default(ACTIVE)
+  createdById    String?     @db.ObjectId
+  doctorEmail    String?
+  verifyToken    String?
+  verifyExpires  DateTime?
+  verifiedAt     DateTime?
+  rejectReason   String?
+  medication     Medication? @relation(fields: [medicationId], references: [id])
+
+  @@index([patientId])
+}
+
+model DoseLog {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  patientId    String     @db.ObjectId
+  medicationId String     @db.ObjectId
+  slot         DateTime
+  scheduledAt  DateTime
+  status       DoseStatus @default(PENDING)
+  loggedAt     DateTime?
+  skipReason   String?
+  sideEffects  String?
+  remindAt     DateTime
+  followUpAt   DateTime
+  deadline     DateTime
+  reminderSent Boolean    @default(false)
+  followUpSent Boolean    @default(false)
+  medication   Medication @relation(fields: [medicationId], references: [id])
+
+  @@unique([medicationId, slot])
+  @@index([patientId, scheduledAt])
+  @@index([status, deadline])
+}
+
+model Journal {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId    String   @db.ObjectId
+  date         DateTime
+  mood         Int
+  symptoms     String?
+  medicationId String?  @db.ObjectId
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@index([patientId, date])
+}
+
+model Measurement {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String   @db.ObjectId
+  type       String
+  value      Float
+  value2     Float?
+  unit       String
+  measuredAt DateTime @default(now())
+
+  @@index([patientId, measuredAt])
+}
+
+model Document {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String   @db.ObjectId
+  filename   String
+  mimeType   String
+  path       String
+  uploadedAt DateTime @default(now())
+}
+
+model DoctorNote {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId  String   @db.ObjectId
+  doctorId   String   @db.ObjectId
+  doctorName String
+  content    String
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  type      String
+  title     String
+  body      String
+  data      Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ActivityLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  action    String
+  meta      String?
+  createdAt DateTime @default(now())
+}
+
+model LibraryMed {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  name         String  @unique
+  description  String?
+  form         String?
+  commonDosage String?
+}
+
+model Allergy {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId   String   @db.ObjectId
+  substance   String
+  reaction    String?
+  severity    Severity @default(MODERATE)
+  notes       String?
+  createdById String   @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([patientId])
+}

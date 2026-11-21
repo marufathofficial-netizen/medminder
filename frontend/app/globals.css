@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html { font-size: 18px; }
+body { @apply bg-gray-50 text-gray-900; }
+.in { @apply border border-gray-400 rounded p-2 w-full mb-2 bg-white; }
+.btn { @apply bg-blue-700 text-white rounded px-3 py-2 mr-2 mb-1 hover:bg-blue-800 disabled:opacity-50; }
+.btn2 { @apply bg-gray-200 text-gray-900 rounded px-3 py-2 mr-2 mb-1 hover:bg-gray-300; }
+.btnr { @apply bg-red-700 text-white rounded px-3 py-2 mr-2 mb-1 hover:bg-red-800; }
+.card { @apply bg-white border rounded p-4 mb-4 shadow-sm; }
+h1 { @apply text-2xl font-bold mb-3; }
+h2 { @apply text-xl font-semibold mb-2; }
+label { @apply block text-sm font-medium mb-1; }
+table { @apply w-full text-left; } th, td { @apply p-2 border-b; }
